@@ -8,42 +8,40 @@ const dns = require("dns");
 
 async function connectDb() {
   try {
-   await mongoose.connect(process.env.db_url,{useNewUrlParser: true,useUnifiedTopology: true})
+    await mongoose.connect(process.env.db_url, { useNewUrlParser: true, useUnifiedTopology: true })
     console.log('MongoDB connected successfully')
   } catch (error) {
-    console.log('MongoDB connection error:',error)
+    console.log('MongoDB connection error:', error)
   }
 }
 connectDb()
 
 const urlSchema = new mongoose.Schema(
   {
-    // Define your schema fields
-    original_url:String,
-    short_url:Number
+    original_url: String,
+    short_url: Number
   }
 )
-const Urls = mongoose.model("url",urlSchema)
+const Urls = mongoose.model("url", urlSchema)
 // Basic Configuration
 const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json())
-app.use(express.urlencoded({extended:true}))
+app.use(express.urlencoded({ extended: true }))
 app.use('/public', express.static(`${process.cwd()}/public`));
 
-app.get('/', function(req, res) {
+app.get('/', function (req, res) {
   res.sendFile(process.cwd() + '/views/index.html');
 });
 
 // Your first API endpoint
-app.get('/api/hello', function(req, res) {
+app.get('/api/hello', function (req, res) {
   res.json({ greeting: 'hello API' });
 });
 
-app.post("/api/shorturl",function(req,res){
+app.post("/api/shorturl", function (req, res) {
   const { url } = req.body;
-  
   try {
     const parsedUrl = urlParser.parse(url);
     const hostname = parsedUrl.hostname;
@@ -59,13 +57,12 @@ app.post("/api/shorturl",function(req,res){
         try {
           const urlCount = await Urls.countDocuments({});
           const urlDoc = new Urls({
-            url: url,
+            original_url: url,
             short_url: urlCount + 1
           });
-          
+
           const result = await urlDoc.save();
-          console.log(result);
-          res.json({ original_url: url, short_url: urlCount + 1 });
+          res.json({original_url: url,short_url: urlCount + 1 });
         } catch (err) {
           console.error(err);
           res.status(500).json({ error: 'Internal server error' });
@@ -78,6 +75,22 @@ app.post("/api/shorturl",function(req,res){
   }
 })
 
-app.listen(port, function() {
+app.get("/api/shorturl/:short_url", async function (req, res) {
+  const shortUrl = Number(req.params.short_url);
+  let urlDoc
+  try {
+    if (isNaN(shortUrl)) {
+      return res.status(400).json({ error: 'Invalid short_url parameter' });
+    }else {
+      urlDoc = await Urls.findOne({short_url:shortUrl});
+      res.redirect(urlDoc.original_url);
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+})
+
+app.listen(port, function () {
   console.log(`Listening on port ${port}`);
 });
